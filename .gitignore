@@ -1,0 +1,16 @@
+# API 키 보안을 위해 config.js는 제외하지 않음 (이미 더미 키 사용중)
+# 실제 운영시에는 config.js를 .gitignore에 추가하고 환경변수 사용 권장
+
+# 로그 파일
+*.log
+
+# 임시 파일
+.DS_Store
+Thumbs.db
+
+# IDE 설정
+.vscode/
+.idea/
+
+# 의존성
+node_modules/

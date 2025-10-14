@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>웅진씽크빅 고객센터 챗봇</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+
+<body>
+    <div class="chatbot-container">
+        <!-- Header -->
+        <div class="header">
+            <div class="header-content">
+                <div class="bot-info">
+                    <div class="bot-avatar">
+                        <i class="fas fa-robot"></i>
+                        <div class="online-indicator"></div>
+                    </div>
+                    <div class="bot-details">
+                        <h1>씽키 (Thinky)</h1>
+                        <p>웅진씽크빅 AI 도우미</p>
+                    </div>
+                </div>
+                <button class="menu-btn" id="menuBtn">
+                    <i class="fas fa-bars"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Messages Container -->
+        <div class="messages-container" id="messagesContainer">
+            <!-- Messages will be dynamically added here -->
+        </div>
+
+        <!-- Input Container -->
+        <div class="input-container">
+            <div class="input-wrapper">
+                <input type="text" id="messageInput" placeholder="메시지를 입력하세요..." autocomplete="off">
+                <button class="voice-btn" id="voiceBtn" title="음성 입력">
+                    <i class="fas fa-microphone"></i>
+                </button>
+                <button class="send-btn" id="sendBtn">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Persistent Menu Overlay -->
+        <div class="menu-overlay" id="menuOverlay">
+            <div class="menu-content">
+                <div class="menu-header">
+                    <h3>메뉴</h3>
+                    <button class="close-menu-btn" id="closeMenuBtn">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="menu-list">
+                    <button class="menu-list-item" data-action="결제카드">
+                        <div class="menu-item-icon">
+                            <i class="fas fa-credit-card"></i>
+                        </div>
+                        <span class="menu-item-text">결제카드</span>
+                        <i class="fas fa-chevron-right menu-item-arrow"></i>
+                    </button>
+                    <button class="menu-list-item" data-action="연락처/주소">
+                        <div class="menu-item-icon">
+                            <i class="fas fa-address-book"></i>
+                        </div>
+                        <span class="menu-item-text">연락처/주소</span>
+                        <i class="fas fa-chevron-right menu-item-arrow"></i>
+                    </button>
+                    <button class="menu-list-item" data-action="포인트/마일리지">
+                        <div class="menu-item-icon">
+                            <i class="fas fa-coins"></i>
+                        </div>
+                        <span class="menu-item-text">포인트/마일리지</span>
+                        <i class="fas fa-chevron-right menu-item-arrow"></i>
+                    </button>
+                    <button class="menu-list-item" data-action="즉시결제">
+                        <div class="menu-item-icon">
+                            <i class="fas fa-money-bill-wave"></i>
+                        </div>
+                        <span class="menu-item-text">즉시결제</span>
+                        <i class="fas fa-chevron-right menu-item-arrow"></i>
+                    </button>
+                    <button class="menu-list-item" data-action="학습시간">
+                        <div class="menu-item-icon">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <span class="menu-item-text">학습시간</span>
+                        <i class="fas fa-chevron-right menu-item-arrow"></i>
+                    </button>
+                    <button class="menu-list-item" data-action="멤버십확인">
+                        <div class="menu-item-icon">
+                            <i class="fas fa-calendar-alt"></i>
+                        </div>
+                        <span class="menu-item-text">멤버십확인</span>
+                        <i class="fas fa-chevron-right menu-item-arrow"></i>
+                    </button>
+                    <button class="menu-list-item" data-action="학습/진도">
+                        <div class="menu-item-icon">
+                            <i class="fas fa-graduation-cap"></i>
+                        </div>
+                        <span class="menu-item-text">학습/진도</span>
+                        <i class="fas fa-chevron-right menu-item-arrow"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="script.js"></script>
+</body>
+
+</html>
