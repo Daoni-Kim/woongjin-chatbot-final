@@ -2,29 +2,20 @@ class WoongjinChatbot {
     constructor() {
         this.messages = [];
         this.isTyping = false;
-        // 설정 파일에서 API 키 로드
+        // 설정 파일 로드 (API 키는 서버에서 관리)
         this.config = window.CONFIG || {};
-        this.openaiApiKey = this.config.OPENAI_API_KEY;
         this.init();
         this.addInitialMessage();
         this.checkApiKeyStatus();
     }
 
     checkApiKeyStatus() {
-        console.log('🔑 API 키 상태 확인:');
+        console.log('🔧 앱 설정 확인:');
         console.log('- Config 객체:', this.config);
         console.log('- Config 로드됨:', !!this.config);
-        console.log('- API 키 존재:', !!this.openaiApiKey);
-        console.log('- API 키 값:', this.openaiApiKey ? `${this.openaiApiKey.substring(0, 10)}...` : 'null');
-        console.log('- API 키 유효성:', this.openaiApiKey && this.openaiApiKey !== 'YOUR_OPENAI_API_KEY' ? '✅ 설정됨' : '❌ 미설정');
-        
-        if (this.openaiApiKey && this.openaiApiKey.startsWith('sk-')) {
-            console.log('- API 키 형식:', '✅ 올바름 (sk-로 시작)');
-        } else {
-            console.log('- API 키 형식:', '❌ 잘못됨 (sk-로 시작해야 함)');
-        }
-        
-        // 전역 CONFIG 확인
+        console.log('- 앱 이름:', this.config.APP_NAME || '기본값');
+        console.log('- 버전:', this.config.VERSION || '1.0.0');
+        console.log('- 보안 모드:', '✅ API 키 서버 관리');
         console.log('- 전역 CONFIG:', window.CONFIG);
     }
 
@@ -467,74 +458,43 @@ class WoongjinChatbot {
     }
 
     async getOpenAIResponse(userMessage) {
-        // API 키가 설정되지 않은 경우 기본 응답
-        if (!this.openaiApiKey || 
-            this.openaiApiKey === 'YOUR_OPENAI_API_KEY' || 
-            !this.openaiApiKey.startsWith('sk-')) {
-            return '안녕하세요! 웅진씽크빅 고객센터입니다.\n\nOpenAI API 키가 설정되지 않아 기본 응답을 드립니다.\nconfig.js 파일에서 API 키를 설정해주세요.\n\n구체적인 도움이 필요하시면 아래 메뉴를 이용해주세요.';
-        }
-
-        console.log('🚀 OpenAI API 호출 시작:', userMessage);
+        console.log('🚀 AI 응답 요청 시작:', userMessage);
 
         try {
-            const response = await fetch('https://api.openai.com/v1/chat/completions', {
+            // 서버리스 함수로 요청 (API 키 노출 없음)
+            const response = await fetch('/api/chat', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${this.openaiApiKey}`
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    model: this.config.OPENAI_MODEL || 'gpt-3.5-turbo',
-                    messages: [
-                        {
-                            role: 'system',
-                            content: this.config.SYSTEM_PROMPT
-                        },
-                        {
-                            role: 'user',
-                            content: userMessage
-                        }
-                    ],
-                    max_tokens: this.config.MAX_TOKENS || 150,
-                    temperature: this.config.TEMPERATURE || 0.7
+                    message: userMessage
                 })
             });
 
-            console.log('📡 API 응답 상태:', response.status);
+            console.log('📡 서버 응답 상태:', response.status);
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
-                console.error('❌ API 오류 상세:', errorData);
-                throw new Error(`OpenAI API 오류: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
+                console.error('❌ 서버 오류:', errorData);
+                throw new Error(`서버 오류: ${response.status} - ${errorData.error || 'Unknown error'}`);
             }
 
             const data = await response.json();
-            let response_text = data.choices[0].message.content.trim();
+            const responseText = data.response;
             
-            // 300자 제한 적용 (문장이 짤리지 않도록 처리)
-            if (response_text.length > 300) {
-                // 마지막 완전한 문장을 찾기 위해 문장 끝 기호 찾기
-                let cutIndex = 297;
-                const sentenceEnders = ['.', '!', '?', '。', '!', '?'];
-                
-                // 297자 이전에서 가장 가까운 문장 끝 찾기
-                for (let i = 297; i >= 250; i--) {
-                    if (sentenceEnders.includes(response_text[i])) {
-                        cutIndex = i + 1;
-                        break;
-                    }
-                }
-                
-                response_text = response_text.substring(0, cutIndex);
-                console.log('📏 응답 길이 제한 적용: 300자 이내로 조정');
-            }
-            
-            console.log('✅ API 응답 성공:', response_text);
-            console.log('📊 응답 길이:', response_text.length + '자');
-            return response_text;
+            console.log('✅ AI 응답 성공:', responseText);
+            console.log('📊 응답 길이:', responseText.length + '자');
+            return responseText;
 
         } catch (error) {
-            console.error('🚨 OpenAI API 호출 실패:', error);
+            console.error('🚨 AI 응답 요청 실패:', error);
+            
+            // 네트워크 오류 시 친화적인 메시지
+            if (error.name === 'TypeError' && error.message.includes('fetch')) {
+                return '네트워크 연결을 확인해주세요.\n잠시 후 다시 시도해주시거나 아래 메뉴를 이용해주세요.';
+            }
+            
             throw error;
         }
     }
