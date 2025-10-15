@@ -1,13 +1,32 @@
 // Vercel 서버리스 함수 - OpenAI API 프록시 + 로깅
 
-// 데이터베이스 로깅을 선택적으로 사용 (오류 시 API는 계속 작동)
+// 로깅 시스템 초기화
 let ChatLogger = null;
-try {
-    const dbModule = await import('../lib/database.js');
-    ChatLogger = dbModule.ChatLogger;
-    console.log('✅ 데이터베이스 모듈 로드 성공');
-} catch (error) {
-    console.warn('⚠️ 데이터베이스 모듈 로드 실패, 로깅 없이 계속:', error.message);
+const DB_ENABLED = process.env.POSTGRES_URL && 
+                   process.env.POSTGRES_URL !== 'your_postgres_connection_string' &&
+                   !process.env.POSTGRES_URL.includes('localhost');
+
+console.log('🔧 로깅 시스템 초기화:', {
+    DB_ENABLED,
+    hasPostgresUrl: !!process.env.POSTGRES_URL,
+    postgresUrlPreview: process.env.POSTGRES_URL ? 
+        `${process.env.POSTGRES_URL.substring(0, 20)}...` : 'null'
+});
+
+if (DB_ENABLED) {
+    try {
+        const dbModule = await import('../lib/database.js');
+        ChatLogger = dbModule.ChatLogger;
+        console.log('✅ PostgreSQL 데이터베이스 로거 로드 성공');
+    } catch (error) {
+        console.warn('⚠️ PostgreSQL 로거 실패, 간단한 로거로 대체:', error.message);
+        const simpleModule = await import('../lib/simple-logger.js');
+        ChatLogger = simpleModule.SimpleLogger;
+    }
+} else {
+    console.log('ℹ️ 간단한 로거 사용 (PostgreSQL 비활성화)');
+    const simpleModule = await import('../lib/simple-logger.js');
+    ChatLogger = simpleModule.SimpleLogger;
 }
 
 export default async function handler(req, res) {
@@ -39,22 +58,28 @@ export default async function handler(req, res) {
 
         // 안전한 로깅 함수
         const safeLog = async (logData) => {
-            if (ChatLogger) {
-                try {
-                    await ChatLogger.logMessage(logData);
-                } catch (logError) {
-                    console.warn('⚠️ 로깅 실패 (API는 계속 진행):', logError.message);
-                }
+            if (!ChatLogger) {
+                console.log('📝 로그 (로거 없음):', logData.messageType, logData.userMessage?.substring(0, 30));
+                return;
+            }
+            
+            try {
+                await ChatLogger.logMessage(logData);
+            } catch (logError) {
+                console.warn('⚠️ 로깅 실패 (API는 계속 진행):', logError.message);
             }
         };
 
         const safeUpdateSession = async (sessionData) => {
-            if (ChatLogger) {
-                try {
-                    await ChatLogger.updateSession(sessionData);
-                } catch (logError) {
-                    console.warn('⚠️ 세션 업데이트 실패 (API는 계속 진행):', logError.message);
-                }
+            if (!ChatLogger) {
+                console.log('👤 세션 (로거 없음):', sessionData.sessionId);
+                return;
+            }
+            
+            try {
+                await ChatLogger.updateSession(sessionData);
+            } catch (logError) {
+                console.warn('⚠️ 세션 업데이트 실패 (API는 계속 진행):', logError.message);
             }
         };
 
