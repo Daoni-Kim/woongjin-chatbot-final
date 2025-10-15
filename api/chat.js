@@ -1,5 +1,14 @@
 // Vercel 서버리스 함수 - OpenAI API 프록시 + 로깅
-import { ChatLogger } from '../lib/database.js';
+
+// 데이터베이스 로깅을 선택적으로 사용 (오류 시 API는 계속 작동)
+let ChatLogger = null;
+try {
+    const dbModule = await import('../lib/database.js');
+    ChatLogger = dbModule.ChatLogger;
+    console.log('✅ 데이터베이스 모듈 로드 성공');
+} catch (error) {
+    console.warn('⚠️ 데이터베이스 모듈 로드 실패, 로깅 없이 계속:', error.message);
+}
 
 export default async function handler(req, res) {
     // CORS 헤더 설정
@@ -22,15 +31,36 @@ export default async function handler(req, res) {
         const startTime = Date.now();
         
         // 세션 ID 생성 (클라이언트에서 제공되지 않은 경우)
-        const currentSessionId = sessionId || ChatLogger.generateSessionId();
+        const currentSessionId = sessionId || `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         
         // 요청 정보 수집
         const userAgent = req.headers['user-agent'];
         const ipAddress = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
 
+        // 안전한 로깅 함수
+        const safeLog = async (logData) => {
+            if (ChatLogger) {
+                try {
+                    await ChatLogger.logMessage(logData);
+                } catch (logError) {
+                    console.warn('⚠️ 로깅 실패 (API는 계속 진행):', logError.message);
+                }
+            }
+        };
+
+        const safeUpdateSession = async (sessionData) => {
+            if (ChatLogger) {
+                try {
+                    await ChatLogger.updateSession(sessionData);
+                } catch (logError) {
+                    console.warn('⚠️ 세션 업데이트 실패 (API는 계속 진행):', logError.message);
+                }
+            }
+        };
+
         // 입력 검증
         if (!message || typeof message !== 'string') {
-            await ChatLogger.logMessage({
+            await safeLog({
                 sessionId: currentSessionId,
                 userMessage: message || 'null',
                 messageType: 'error',
@@ -43,7 +73,7 @@ export default async function handler(req, res) {
 
         // 메시지 길이 제한 (보안)
         if (message.length > 500) {
-            await ChatLogger.logMessage({
+            await safeLog({
                 sessionId: currentSessionId,
                 userMessage: message.substring(0, 100) + '...',
                 messageType: 'error',
@@ -55,7 +85,7 @@ export default async function handler(req, res) {
         }
 
         // 사용자 메시지 로깅
-        await ChatLogger.logMessage({
+        await safeLog({
             sessionId: currentSessionId,
             userMessage: message,
             messageType: 'user',
@@ -64,7 +94,7 @@ export default async function handler(req, res) {
         });
 
         // 세션 정보 업데이트
-        await ChatLogger.updateSession({
+        await safeUpdateSession({
             sessionId: currentSessionId,
             userAgent,
             ipAddress,
@@ -74,32 +104,33 @@ export default async function handler(req, res) {
         // 환경변수에서 API 키 가져오기
         const apiKey = process.env.OPENAI_API_KEY;
         
-        if (!apiKey) {
-            console.error('OpenAI API key not found');
-            await ChatLogger.logMessage({
+        console.log('🔑 API 키 확인:', {
+            exists: !!apiKey,
+            length: apiKey ? apiKey.length : 0,
+            startsWithSk: apiKey ? apiKey.startsWith('sk-') : false,
+            preview: apiKey ? `${apiKey.substring(0, 10)}...` : 'null'
+        });
+        
+        if (!apiKey || apiKey === 'your_openai_api_key_here' || !apiKey.startsWith('sk-')) {
+            console.error('❌ OpenAI API key not found or invalid');
+            await safeLog({
                 sessionId: currentSessionId,
                 userMessage: message,
                 messageType: 'error',
                 userAgent,
                 ipAddress,
-                errorMessage: 'API key not configured'
+                errorMessage: 'API key not configured or invalid'
             });
             return res.status(500).json({ error: 'API key not configured' });
         }
 
-        // OpenAI API 호출
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`
-            },
-            body: JSON.stringify({
-                model: 'gpt-3.5-turbo',
-                messages: [
-                    {
-                        role: 'system',
-                        content: `당신은 웅진씽크빅 고객센터의 친절한 AI 도우미 '씽키(Thinky)'입니다.
+        // OpenAI API 호출 준비
+        const requestBody = {
+            model: 'gpt-3.5-turbo',
+            messages: [
+                {
+                    role: 'system',
+                    content: `당신은 웅진씽크빅 고객센터의 친절한 AI 도우미 '씽키(Thinky)'입니다.
 
 역할:
 1. 웅진씽크빅 교육서비스(스마트올, 와이즈캠프, 북클럽 등) 일반 질문 답변
@@ -108,15 +139,37 @@ export default async function handler(req, res) {
 4. 필요시 상담원 연결이나 관련 메뉴 안내
 
 **중요: 답변은 반드시 300자 이내로 완전한 문장으로 작성하세요.**`
-                    },
-                    {
-                        role: 'user',
-                        content: message
-                    }
-                ],
-                max_tokens: 250,
-                temperature: 0.7
-            })
+                },
+                {
+                    role: 'user',
+                    content: message
+                }
+            ],
+            max_tokens: 250,
+            temperature: 0.7
+        };
+
+        console.log('🚀 OpenAI API 호출 시작:', {
+            url: 'https://api.openai.com/v1/chat/completions',
+            model: requestBody.model,
+            messageLength: message.length,
+            timestamp: new Date().toISOString()
+        });
+
+        // OpenAI API 호출
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify(requestBody)
+        });
+
+        console.log('📡 OpenAI API 응답:', {
+            status: response.status,
+            statusText: response.statusText,
+            headers: Object.fromEntries(response.headers.entries())
         });
 
         if (!response.ok) {
@@ -124,7 +177,7 @@ export default async function handler(req, res) {
             console.error('OpenAI API error:', response.status, errorData);
             
             // API 오류 로깅
-            await ChatLogger.logMessage({
+            await safeLog({
                 sessionId: currentSessionId,
                 userMessage: message,
                 messageType: 'error',
@@ -158,7 +211,7 @@ export default async function handler(req, res) {
         const responseTime = Date.now() - startTime;
 
         // 성공적인 AI 응답 로깅
-        await ChatLogger.logMessage({
+        await safeLog({
             sessionId: currentSessionId,
             userMessage: message,
             botResponse: responseText,
@@ -181,16 +234,22 @@ export default async function handler(req, res) {
         // 서버 오류 로깅
         try {
             const { message, sessionId } = req.body || {};
-            const currentSessionId = sessionId || ChatLogger.generateSessionId();
+            const currentSessionId = sessionId || `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
             
-            await ChatLogger.logMessage({
-                sessionId: currentSessionId,
-                userMessage: message || 'unknown',
-                messageType: 'error',
-                userAgent: req.headers['user-agent'],
-                ipAddress: req.headers['x-forwarded-for'] || req.connection.remoteAddress,
-                errorMessage: error.message || 'Internal server error'
-            });
+            if (ChatLogger) {
+                try {
+                    await ChatLogger.logMessage({
+                        sessionId: currentSessionId,
+                        userMessage: message || 'unknown',
+                        messageType: 'error',
+                        userAgent: req.headers['user-agent'],
+                        ipAddress: req.headers['x-forwarded-for'] || req.connection.remoteAddress,
+                        errorMessage: error.message || 'Internal server error'
+                    });
+                } catch (logError) {
+                    console.warn('⚠️ 오류 로깅 실패:', logError.message);
+                }
+            }
         } catch (logError) {
             console.error('로깅 실패:', logError);
         }
