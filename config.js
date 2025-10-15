@@ -5,11 +5,11 @@ const CONFIG = {
     // 클라이언트 설정 (API 키는 서버에서 관리)
     APP_NAME: '웅진씽크빅 고객센터 챗봇',
     VERSION: '1.0.0',
-    
+
     // UI 설정
     MAX_MESSAGE_LENGTH: 500,
     TYPING_DELAY: 1200,
-    
+
     // 기능 설정
     ENABLE_VOICE: true,
     ENABLE_MENU: true

@@ -1,4 +1,6 @@
-// Vercel 서버리스 함수 - OpenAI API 프록시
+// Vercel 서버리스 함수 - OpenAI API 프록시 + 로깅
+import { ChatLogger } from '../lib/database.js';
+
 export default async function handler(req, res) {
     // CORS 헤더 설정
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -16,23 +18,72 @@ export default async function handler(req, res) {
     }
 
     try {
-        const { message } = req.body;
+        const { message, sessionId } = req.body;
+        const startTime = Date.now();
+        
+        // 세션 ID 생성 (클라이언트에서 제공되지 않은 경우)
+        const currentSessionId = sessionId || ChatLogger.generateSessionId();
+        
+        // 요청 정보 수집
+        const userAgent = req.headers['user-agent'];
+        const ipAddress = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
 
         // 입력 검증
         if (!message || typeof message !== 'string') {
+            await ChatLogger.logMessage({
+                sessionId: currentSessionId,
+                userMessage: message || 'null',
+                messageType: 'error',
+                userAgent,
+                ipAddress,
+                errorMessage: 'Invalid message format'
+            });
             return res.status(400).json({ error: 'Invalid message' });
         }
 
         // 메시지 길이 제한 (보안)
         if (message.length > 500) {
+            await ChatLogger.logMessage({
+                sessionId: currentSessionId,
+                userMessage: message.substring(0, 100) + '...',
+                messageType: 'error',
+                userAgent,
+                ipAddress,
+                errorMessage: 'Message too long'
+            });
             return res.status(400).json({ error: 'Message too long' });
         }
+
+        // 사용자 메시지 로깅
+        await ChatLogger.logMessage({
+            sessionId: currentSessionId,
+            userMessage: message,
+            messageType: 'user',
+            userAgent,
+            ipAddress
+        });
+
+        // 세션 정보 업데이트
+        await ChatLogger.updateSession({
+            sessionId: currentSessionId,
+            userAgent,
+            ipAddress,
+            referrer: req.headers.referer
+        });
 
         // 환경변수에서 API 키 가져오기
         const apiKey = process.env.OPENAI_API_KEY;
         
         if (!apiKey) {
             console.error('OpenAI API key not found');
+            await ChatLogger.logMessage({
+                sessionId: currentSessionId,
+                userMessage: message,
+                messageType: 'error',
+                userAgent,
+                ipAddress,
+                errorMessage: 'API key not configured'
+            });
             return res.status(500).json({ error: 'API key not configured' });
         }
 
@@ -71,6 +122,18 @@ export default async function handler(req, res) {
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
             console.error('OpenAI API error:', response.status, errorData);
+            
+            // API 오류 로깅
+            await ChatLogger.logMessage({
+                sessionId: currentSessionId,
+                userMessage: message,
+                messageType: 'error',
+                userAgent,
+                ipAddress,
+                responseTimeMs: Date.now() - startTime,
+                errorMessage: `OpenAI API error: ${response.status}`
+            });
+            
             return res.status(500).json({ error: 'AI service temporarily unavailable' });
         }
 
@@ -92,13 +155,46 @@ export default async function handler(req, res) {
             responseText = responseText.substring(0, cutIndex);
         }
 
+        const responseTime = Date.now() - startTime;
+
+        // 성공적인 AI 응답 로깅
+        await ChatLogger.logMessage({
+            sessionId: currentSessionId,
+            userMessage: message,
+            botResponse: responseText,
+            messageType: 'bot',
+            userAgent,
+            ipAddress,
+            responseTimeMs: responseTime
+        });
+
         return res.status(200).json({ 
             response: responseText,
-            timestamp: new Date().toISOString()
+            sessionId: currentSessionId,
+            timestamp: new Date().toISOString(),
+            responseTime: responseTime
         });
 
     } catch (error) {
         console.error('Server error:', error);
+        
+        // 서버 오류 로깅
+        try {
+            const { message, sessionId } = req.body || {};
+            const currentSessionId = sessionId || ChatLogger.generateSessionId();
+            
+            await ChatLogger.logMessage({
+                sessionId: currentSessionId,
+                userMessage: message || 'unknown',
+                messageType: 'error',
+                userAgent: req.headers['user-agent'],
+                ipAddress: req.headers['x-forwarded-for'] || req.connection.remoteAddress,
+                errorMessage: error.message || 'Internal server error'
+            });
+        } catch (logError) {
+            console.error('로깅 실패:', logError);
+        }
+        
         return res.status(500).json({ error: 'Internal server error' });
     }
 }

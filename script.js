@@ -4,9 +4,22 @@ class WoongjinChatbot {
         this.isTyping = false;
         // 설정 파일 로드 (API 키는 서버에서 관리)
         this.config = window.CONFIG || {};
+        // 세션 ID 생성 (브라우저 세션 동안 유지)
+        this.sessionId = this.generateSessionId();
         this.init();
         this.addInitialMessage();
         this.checkApiKeyStatus();
+    }
+
+    generateSessionId() {
+        // 기존 세션 ID가 있으면 재사용 (새로고침 시에도 유지)
+        let sessionId = sessionStorage.getItem('chatbot_session_id');
+        if (!sessionId) {
+            sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            sessionStorage.setItem('chatbot_session_id', sessionId);
+        }
+        console.log('🔑 세션 ID:', sessionId);
+        return sessionId;
     }
 
     checkApiKeyStatus() {
@@ -468,7 +481,8 @@ class WoongjinChatbot {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    message: userMessage
+                    message: userMessage,
+                    sessionId: this.sessionId
                 })
             });
 

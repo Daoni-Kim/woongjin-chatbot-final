@@ -1,0 +1,22 @@
+{
+  "name": "woongjin-chatbot",
+  "version": "1.0.0",
+  "description": "웅진씽크빅 고객센터 AI 챗봇",
+  "type": "module",
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "echo 'No build required for static site'",
+    "start": "vercel dev"
+  },
+  "dependencies": {
+    "@vercel/postgres": "^0.5.1"
+  },
+  "keywords": [
+    "chatbot",
+    "ai",
+    "customer-service",
+    "woongjin"
+  ],
+  "author": "Woongjin ThinkBig",
+  "license": "MIT"
+}
