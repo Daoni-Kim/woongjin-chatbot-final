@@ -41,14 +41,14 @@ export default async function handler(req, res) {
                         'Authorization': `Bearer ${apiKey}`
                     },
                     body: JSON.stringify({
-                        model: 'gpt-3.5-turbo',
+                        model: 'gpt-4o-mini',
                         messages: [
                             {
                                 role: 'user',
                                 content: '안녕하세요'
                             }
                         ],
-                        max_tokens: 10
+                        max_tokens: 20
                     })
                 });
 

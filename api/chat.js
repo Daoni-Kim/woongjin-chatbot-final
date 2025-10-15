@@ -151,7 +151,7 @@ export default async function handler(req, res) {
 
         // OpenAI API 호출 준비
         const requestBody = {
-            model: 'gpt-3.5-turbo',
+            model: 'gpt-4o-mini',
             messages: [
                 {
                     role: 'system',
@@ -170,13 +170,14 @@ export default async function handler(req, res) {
                     content: message
                 }
             ],
-            max_tokens: 250,
+            max_tokens: 300,
             temperature: 0.7
         };
 
         console.log('🚀 OpenAI API 호출 시작:', {
             url: 'https://api.openai.com/v1/chat/completions',
             model: requestBody.model,
+            maxTokens: requestBody.max_tokens,
             messageLength: message.length,
             timestamp: new Date().toISOString()
         });
