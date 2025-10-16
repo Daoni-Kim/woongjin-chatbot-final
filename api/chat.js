@@ -56,30 +56,68 @@ export default async function handler(req, res) {
         const userAgent = req.headers['user-agent'];
         const ipAddress = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
 
-        // 안전한 로깅 함수
-        const safeLog = async (logData) => {
-            if (!ChatLogger) {
-                console.log('📝 로그 (로거 없음):', logData.messageType, logData.userMessage?.substring(0, 30));
-                return;
-            }
+        // API 시작 로그
+        console.log('🚀 API_START:', JSON.stringify({
+            timestamp: new Date().toISOString(),
+            sessionId: currentSessionId,
+            messageLength: message?.length || 0,
+            userAgent: userAgent?.substring(0, 50),
+            ipAddress: ipAddress,
+            hasMessage: !!message,
+            method: req.method,
+            url: req.url
+        }, null, 2));
 
-            try {
-                await ChatLogger.logMessage(logData);
-            } catch (logError) {
-                console.warn('⚠️ 로깅 실패 (API는 계속 진행):', logError.message);
+        // Vercel 로그 우선 + 선택적 DB 로깅
+        const safeLog = async (logData) => {
+            // 1. 항상 Vercel 콘솔에 구조화된 로그 출력
+            const vercelLog = {
+                timestamp: new Date().toISOString(),
+                sessionId: logData.sessionId,
+                messageType: logData.messageType,
+                userMessage: logData.userMessage?.substring(0, 100),
+                botResponse: logData.botResponse?.substring(0, 100),
+                responseTimeMs: logData.responseTimeMs,
+                errorMessage: logData.errorMessage,
+                userAgent: logData.userAgent?.substring(0, 50),
+                ipAddress: logData.ipAddress
+            };
+            
+            console.log('🔥 CHAT_LOG:', JSON.stringify(vercelLog, null, 2));
+            
+            // 2. 선택적으로 DB에도 저장 (실패해도 API 계속 진행)
+            const USE_DATABASE = process.env.USE_DATABASE === 'true';
+            if (USE_DATABASE && ChatLogger) {
+                try {
+                    await ChatLogger.logMessage(logData);
+                    console.log('✅ DB 로깅도 성공');
+                } catch (logError) {
+                    console.warn('⚠️ DB 로깅 실패 (Vercel 로그는 정상):', logError.message);
+                }
+            } else {
+                console.log('ℹ️ DB 로깅 비활성화 - Vercel 로그만 사용');
             }
         };
 
         const safeUpdateSession = async (sessionData) => {
-            if (!ChatLogger) {
-                console.log('👤 세션 (로거 없음):', sessionData.sessionId);
-                return;
-            }
-
-            try {
-                await ChatLogger.updateSession(sessionData);
-            } catch (logError) {
-                console.warn('⚠️ 세션 업데이트 실패 (API는 계속 진행):', logError.message);
+            // 1. 항상 Vercel 콘솔에 세션 정보 출력
+            console.log('👤 SESSION_UPDATE:', JSON.stringify({
+                timestamp: new Date().toISOString(),
+                sessionId: sessionData.sessionId,
+                userAgent: sessionData.userAgent?.substring(0, 50),
+                ipAddress: sessionData.ipAddress,
+                referrer: sessionData.referrer
+            }, null, 2));
+            
+            // 2. 선택적으로 DB에도 저장
+            const USE_DATABASE = process.env.USE_DATABASE === 'true';
+            if (USE_DATABASE && ChatLogger) {
+                try {
+                    await ChatLogger.updateSession(sessionData);
+                    console.log('✅ 세션 DB 업데이트 성공');
+                } catch (logError) {
+                    console.warn('⚠️ 세션 DB 업데이트 실패 (Vercel 로그는 정상):', logError.message);
+                }
             }
         };
 
@@ -247,6 +285,15 @@ export default async function handler(req, res) {
             responseTimeMs: responseTime
         });
 
+        // API 성공 완료 로그
+        console.log('✅ API_SUCCESS:', JSON.stringify({
+            timestamp: new Date().toISOString(),
+            sessionId: currentSessionId,
+            responseLength: responseText.length,
+            responseTime: responseTime,
+            totalTime: Date.now() - startTime
+        }, null, 2));
+
         return res.status(200).json({
             response: responseText,
             sessionId: currentSessionId,
@@ -255,7 +302,12 @@ export default async function handler(req, res) {
         });
 
     } catch (error) {
-        console.error('Server error:', error);
+        console.error('❌ API_ERROR:', JSON.stringify({
+            timestamp: new Date().toISOString(),
+            error: error.message,
+            stack: error.stack,
+            sessionId: req.body?.sessionId || 'unknown'
+        }, null, 2));
 
         // 서버 오류 로깅
         try {
