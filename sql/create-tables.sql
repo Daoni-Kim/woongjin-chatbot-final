@@ -31,9 +31,20 @@ CREATE INDEX IF NOT EXISTS idx_chat_logs_session_id ON public.chat_logs(session_
 CREATE INDEX IF NOT EXISTS idx_chat_logs_created_at ON public.chat_logs(created_at);
 CREATE INDEX IF NOT EXISTS idx_chat_logs_message_type ON public.chat_logs(message_type);
 
--- 4. RLS (Row Level Security) 비활성화 (API에서 접근 가능하도록)
+-- 4. RLS (Row Level Security) 설정
+-- 방법 A: 완전 비활성화 (개발용)
 ALTER TABLE public.chat_logs DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.chat_sessions DISABLE ROW LEVEL SECURITY;
+
+-- 방법 B: 정책 기반 접근 (운영용 - 위 방법 대신 사용)
+-- ALTER TABLE public.chat_logs ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE public.chat_sessions ENABLE ROW LEVEL SECURITY;
+-- 
+-- CREATE POLICY "Enable all for service role" ON public.chat_logs
+-- FOR ALL USING (auth.role() = 'service_role') WITH CHECK (auth.role() = 'service_role');
+-- 
+-- CREATE POLICY "Enable all for service role" ON public.chat_sessions
+-- FOR ALL USING (auth.role() = 'service_role') WITH CHECK (auth.role() = 'service_role');
 
 -- 5. 테스트 데이터 삽입
 INSERT INTO public.chat_logs (

@@ -23,12 +23,25 @@ export default async function handler(req, res) {
 
         console.log('🧪 데이터베이스 테스트 시작...');
 
-        // 1. 환경변수 확인
+        // 1. 환경변수 상세 확인
+        testResults.environmentDetails = {
+            supabaseUrl: process.env.SUPABASE_URL ? 
+                `${process.env.SUPABASE_URL.substring(0, 30)}...` : 'NOT SET',
+            serviceKeyLength: process.env.SUPABASE_SERVICE_ROLE_KEY ? 
+                process.env.SUPABASE_SERVICE_ROLE_KEY.length : 0,
+            anonKeyLength: process.env.SUPABASE_ANON_KEY ? 
+                process.env.SUPABASE_ANON_KEY.length : 0
+        };
+
         if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
             return res.status(500).json({
                 success: false,
                 error: 'Supabase 환경변수가 설정되지 않았습니다',
-                testResults
+                testResults,
+                missingVars: {
+                    SUPABASE_URL: !process.env.SUPABASE_URL,
+                    SUPABASE_SERVICE_ROLE_KEY: !process.env.SUPABASE_SERVICE_ROLE_KEY
+                }
             });
         }
 
