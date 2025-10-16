@@ -2,14 +2,14 @@
 
 // 로깅 시스템 초기화
 let ChatLogger = null;
-const DB_ENABLED = process.env.POSTGRES_URL && 
-                   process.env.POSTGRES_URL !== 'your_postgres_connection_string' &&
-                   !process.env.POSTGRES_URL.includes('localhost');
+const DB_ENABLED = process.env.POSTGRES_URL &&
+    process.env.POSTGRES_URL !== 'your_postgres_connection_string' &&
+    !process.env.POSTGRES_URL.includes('localhost');
 
 console.log('🔧 로깅 시스템 초기화:', {
     DB_ENABLED,
     hasPostgresUrl: !!process.env.POSTGRES_URL,
-    postgresUrlPreview: process.env.POSTGRES_URL ? 
+    postgresUrlPreview: process.env.POSTGRES_URL ?
         `${process.env.POSTGRES_URL.substring(0, 20)}...` : 'null'
 });
 
@@ -48,10 +48,10 @@ export default async function handler(req, res) {
     try {
         const { message, sessionId } = req.body;
         const startTime = Date.now();
-        
+
         // 세션 ID 생성 (클라이언트에서 제공되지 않은 경우)
         const currentSessionId = sessionId || `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        
+
         // 요청 정보 수집
         const userAgent = req.headers['user-agent'];
         const ipAddress = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
@@ -62,7 +62,7 @@ export default async function handler(req, res) {
                 console.log('📝 로그 (로거 없음):', logData.messageType, logData.userMessage?.substring(0, 30));
                 return;
             }
-            
+
             try {
                 await ChatLogger.logMessage(logData);
             } catch (logError) {
@@ -75,7 +75,7 @@ export default async function handler(req, res) {
                 console.log('👤 세션 (로거 없음):', sessionData.sessionId);
                 return;
             }
-            
+
             try {
                 await ChatLogger.updateSession(sessionData);
             } catch (logError) {
@@ -128,14 +128,14 @@ export default async function handler(req, res) {
 
         // 환경변수에서 API 키 가져오기
         const apiKey = process.env.OPENAI_API_KEY;
-        
+
         console.log('🔑 API 키 확인:', {
             exists: !!apiKey,
             length: apiKey ? apiKey.length : 0,
             startsWithSk: apiKey ? apiKey.startsWith('sk-') : false,
             preview: apiKey ? `${apiKey.substring(0, 10)}...` : 'null'
         });
-        
+
         if (!apiKey || apiKey === 'your_openai_api_key_here' || !apiKey.startsWith('sk-')) {
             console.error('❌ OpenAI API key not found or invalid');
             await safeLog({
@@ -201,7 +201,7 @@ export default async function handler(req, res) {
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
             console.error('OpenAI API error:', response.status, errorData);
-            
+
             // API 오류 로깅
             await safeLog({
                 sessionId: currentSessionId,
@@ -212,25 +212,25 @@ export default async function handler(req, res) {
                 responseTimeMs: Date.now() - startTime,
                 errorMessage: `OpenAI API error: ${response.status}`
             });
-            
+
             return res.status(500).json({ error: 'AI service temporarily unavailable' });
         }
 
         const data = await response.json();
         let responseText = data.choices[0].message.content.trim();
-        
+
         // 300자 제한 적용
         if (responseText.length > 300) {
             const sentenceEnders = ['.', '!', '?', '。', '!', '?'];
             let cutIndex = 297;
-            
+
             for (let i = 297; i >= 250; i--) {
                 if (sentenceEnders.includes(responseText[i])) {
                     cutIndex = i + 1;
                     break;
                 }
             }
-            
+
             responseText = responseText.substring(0, cutIndex);
         }
 
@@ -247,7 +247,7 @@ export default async function handler(req, res) {
             responseTimeMs: responseTime
         });
 
-        return res.status(200).json({ 
+        return res.status(200).json({
             response: responseText,
             sessionId: currentSessionId,
             timestamp: new Date().toISOString(),
@@ -256,12 +256,12 @@ export default async function handler(req, res) {
 
     } catch (error) {
         console.error('Server error:', error);
-        
+
         // 서버 오류 로깅
         try {
             const { message, sessionId } = req.body || {};
             const currentSessionId = sessionId || `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-            
+
             if (ChatLogger) {
                 try {
                     await ChatLogger.logMessage({
@@ -279,7 +279,7 @@ export default async function handler(req, res) {
         } catch (logError) {
             console.error('로깅 실패:', logError);
         }
-        
+
         return res.status(500).json({ error: 'Internal server error' });
     }
 }

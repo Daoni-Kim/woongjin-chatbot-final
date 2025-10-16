@@ -28,8 +28,20 @@ export default async function handler(req, res) {
 
         const { days = 7 } = req.query;
         
-        // 통계 조회
-        const statistics = await ChatLogger.getStatistics(parseInt(days));
+        // 통계 조회 (Supabase 호환)
+        let statistics;
+        try {
+            statistics = await ChatLogger.getStatistics(parseInt(days));
+        } catch (error) {
+            console.warn('통계 조회 실패, 더미 데이터 사용:', error.message);
+            statistics = [{
+                date: new Date().toISOString().split('T')[0],
+                total_messages: 0,
+                unique_sessions: 0,
+                avg_response_time: 0,
+                error_count: 0
+            }];
+        }
         
         // 추가 통계 계산
         const totalMessages = statistics.reduce((sum, day) => sum + day.total_messages, 0);
